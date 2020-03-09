@@ -1,0 +1,272 @@
+{%  extends 'base.html' %}
+{% block content_section_1 %}
+{% load custom_django_template_tags %}
+
+    {% if "my_template_name"|template_exists %}
+     <div>
+         <h1>Notice!</h1>
+         <div class="included">
+             {% include_maybe "my_template_name" %}
+         </div>
+     </div>
+{% endif %}
+
+        <h5>REGION: {{ selected_region }}</h5>
+
+        <table>
+            <col width="300">
+            <col width="300">
+            <col width="300">
+            <tr>
+                <th>Step 1) Please select a refinery processing unit below:</th>
+                <th>Step 2) Please select a feedstock/product slate combination below:</th>
+                <th>Output Refined Product Hierarchy: </th>
+            </tr>
+
+            <tr>
+            <td>
+            <form name="form_select_rpu",method="POST">
+                {% csrf_token %}
+
+                <br><select id="id_selected_rpu" name="selected_rpu" size="10">
+                    {% for rpu_value_tuple in rpu_objects_value_list %}
+                        <option value="{{rpu_value_tuple.1}}", title="{{rpu_value_tuple.1}}">{{rpu_value_tuple.1}}</option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            </td>
+            <td>
+
+                <br><select id="id_selected_fsps" name="selected_fsps" size="10" width='15px'>
+                    {% for fsps_combination in feedstock_productslate %}
+                        <option value="{{fsps_combination.1}}",title="{{fsps_combination.2}}">{{fsps_combination.2}}</option>
+                    {% empty %}
+                        <option value="", title="There are no feedstock-product slate combinations found">There are no feedstock-product slate combinations found</option>
+                    {% endfor %}
+                </select>
+
+            </td>
+            <td>
+                    <br>{% if "svg/product-tree.gv.svg"|template_exists %}
+                     <div id="id_product_tree_graph">
+                         <h1>Notice!</h1>
+                         <div class="included">
+                             {% include_maybe "svg/product-tree.gv.svg" %}
+                         </div>
+                     </div>
+                {% endif %}
+            </td>
+
+            </tr>
+
+            <tr>
+            <td>
+
+                 <div id="id_product_tree_graph_2">
+
+
+                 </div>
+
+            </td>
+
+                <td>
+
+                </td>
+            </tr>
+
+        </table>
+        <br>
+
+    {%  endblock content_section_1%}
+
+{% block javascript %}
+<script>
+
+
+function getUserInput(){
+        rpu_list_element = document.getElementById('id_selected_rpu');
+        fsps_list_element = document.getElementById('id_selected_fsps');
+        {#console.log('rpu_list_element index ' + rpu_list_element.selectedIndex);#}
+        {#console.log('fsps_list_element index ' + fsps_list_element.selectedIndex);#}
+
+        var selected_rpu = rpu_list_element.options[rpu_list_element.selectedIndex].value;
+        var selected_fsps = fsps_list_element.options[fsps_list_element.selectedIndex].value;
+        {#console.log('rpu_list_element value ' + selected_rpu);#}
+        {#console.log('fsps_list_element value ' + selected_fsps);#}
+        var result_array = [selected_rpu,selected_fsps];
+        {#console.log('typeof results_array is: ' + typeof result_array);#}
+        {#console.log('results_array length is: ' + result_array.length);#}
+
+        return result_array;
+}
+
+{#ajax function handles the http call and success routines after user selects a refiner processing unit #}
+    $("#id_selected_rpu").change(function() {
+        {#console.log($(this).val());#}
+        var selected_rpu = $(this).val();
+        {#console.log(selected_rpu);#}
+
+
+        $.ajax({
+        url: '/margins/',
+        dataType: 'json', //datatype to be return
+        data: {
+          'selected_rpu': selected_rpu
+        },
+         //success, datatype expected to be returned from server
+        success: function (data) {
+
+        elementFeedstockProductSlateSelect = document.getElementById('id_selected_fsps');
+        removeOptions(elementFeedstockProductSlateSelect); //remove all options from the fsps select before populating new ones for selected RPU
+
+        //results_array has two objects, each object has its own set of key value pairs (can be more than one), parse JSON data online to understand this better if needed
+        var results_array = JSON.parse(data); //parse the JSON data returned from server into an array of objects, which is also defined as object in JS
+
+        //Show debug data
+        console.log('json response from selecting rpu:' + data)
+        console.log('typeof results_array is: ' + typeof results_array);
+        console.log('results_array length is: ' + results_array.length);
+        //Show list of keys belonging to the
+        var keys = Object.keys(results_array[0]);
+        console.log('id_selected_rpu change ajax run; keys are : ' + keys[1])
+
+
+        //Iterate through objects in the array
+        for (var i = 0; i < results_array.length; i++){
+            var obj = results_array[i];
+            //get the desired value basis the key provided, for the current object
+            feedstockproductslate_name_string = obj['feedstockproductslate_name']
+            //create option element
+            var opt = document.createElement("option");
+            //set the new element's values
+            opt.value= obj['feedstockproductslate_name'];
+            opt.innerHTML = obj['feedstockproductslate_name'];
+            //Add the new option into the select box
+            elementFeedstockProductSlateSelect.appendChild(opt);
+
+        }
+
+
+        }
+      });
+
+    }
+    );
+
+
+    $("#id_selected_fsps").change(function() {
+
+        var returned_inputs_array = getUserInput()
+        let selected_rpu = returned_inputs_array[0]
+        let selected_fsps = returned_inputs_array[1]
+
+
+        //test begin
+        //get selected rpu and fsps
+        rpu_list_element = document.getElementById('id_selected_rpu');
+        fsps_list_element = document.getElementById('id_selected_fsps');
+
+        console.log(selected_rpu);
+        console.log(selected_fsps);
+        //String title
+        var title =  selected_rpu + " Product Tree - " + selected_fsps
+
+        elementtreeGraph = document.getElementById('id_product_tree_graph');
+        elementtreeGraph.innerHTML = null
+        elementtreeGraph.innerHTML += Viz("digraph G { splines=line      rankdir=LR;	" +
+        "subgraph cluster_0 {		style=filled;" +
+        "color=lightgrey;		" +
+        "node [style=filled,color=white, group=1];" +
+        "		dubai;" +
+        "		label = \"Input Feedstock\";" +
+            "}" +
+        "ADU [shape=box height=1.5];	" +
+        "subgraph cluster_1 {		" +
+        "node [style=filled,group=2];		" +
+        "Propane Gasoline Kerosene Gasoil;		" +
+        "label = \"Output Product Yields\";		color=gray	}	" +
+        "dubai->ADU	ADU->Propane	ADU->Gasoline	ADU->Kerosene	ADU->Gasoil;" +
+        "labelloc=t;" +
+        "label=\"" + title + "\";}", "svg");
+
+
+        //test end
+
+        $.ajax({
+        url: '/margins/',
+        dataType: 'json', //datatype to be return
+        data: {
+            'selected_rpu': selected_rpu,
+            'selected_fsps': selected_fsps
+        },
+         //success, datatype expected to be returned from server
+        success: function (data) {
+
+        elementFeedstockProductSlateSelect = document.getElementById('id_selected_fsps');
+        //removeOptions(elementFeedstockProductSlateSelect); //remove all options from the fsps select before populating new ones for selected RPU
+
+        //results_array has two objects, each object has its own set of key value pairs (can be more than one), parse JSON data online to understand this better if needed
+        var results_array = JSON.parse(data); //parse the JSON data returned from server into an array of objects, which is also defined as object in JS
+
+        //Show debug data
+        console.log('json response from selecting rpu:' + data)
+        console.log('typeof results_array is: ' + typeof results_array);
+        console.log('results_array length is: ' + results_array.length);
+        //Show list of keys belonging to the
+
+        var keys = Object.keys(results_array[0]);
+        console.log('id_selected_fsps ajax keys are : ' + keys[1])
+
+        //show the success innerhtml
+                    elementtreeGraph = document.getElementById('id_product_tree_graph_2');
+        elementtreeGraph.innerHTML = null
+        elementtreeGraph.innerHTML += Viz("digraph G { splines=line      rankdir=LR;	" +
+        "subgraph cluster_0 {		style=filled;" +
+        "color=lightgrey;		" +
+        "node [style=filled,color=white, group=1];" +
+        "		dubai;" +
+        "		label = \"Input Feedstock\";" +
+            "}" +
+        "ADU [shape=box height=1.5];	" +
+        "subgraph cluster_1 {		" +
+        "node [style=filled,group=2];		" +
+        "Propane Gasoline Kerosene Gasoil;		" +
+        "label = \"Output Product Yields\";		color=gray	}	" +
+        "dubai->ADU	ADU->Propane	ADU->Gasoline	ADU->Kerosene	ADU->Gasoil;" +
+        "labelloc=t;" +
+        "label=\"" + title + "\";}", "svg");
+        }
+      });
+
+    }
+    );
+
+
+    function removeOptions(selectbox)
+    {
+        var i;
+        for(i = selectbox.options.length - 1 ; i >= 0 ; i--)
+        {
+            selectbox.remove(i);
+        }
+    }
+
+
+
+    {#document.body.innerHTML += "<p>Client side Javascript tree graph.</p>";#}
+    {#document.body.innerHTML += Viz("digraph G { splines=line      rankdir=LR;	" +#}
+    {#    "subgraph cluster_0 {		style=filled;		color=lightgrey;		" +#}
+    {#    "node [style=filled,color=white, group=1];		dubai;		label = Crude Feedstock;}" +#}
+    {#    "ADU [shape=cylinder height=1.5];	" +#}
+    {#    "subgraph cluster_1 {		" +#}
+    {#    "node [style=filled,group=2];		" +#}
+    {#    "Propane Gasoline Kerosene Gasoil;		" +#}
+    {#    "label = Product Yields;		color=gray	}	" +#}
+    {#    "dubai->ADU	ADU->Propane	ADU->Gasoline	ADU->Kerosene	ADU->Gasoil}", "svg");#}
+</script>
+
+{% endblock javascript %}
+
+
+

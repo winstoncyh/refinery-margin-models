@@ -1,0 +1,30 @@
+
+{%  extends 'base.html' %}
+
+{% load static %}
+
+
+    {% block content_section_1 %}
+        <img src="{% static 'images/product-tree.gv.svg' %}"/>
+        <h1>About</h1>
+        {{ my_number }},{{ my_number }}
+        <p>This is about me</p>
+        <p>My address is at {{ my_address }}</p>
+         {% include 'svg/product-tree.gv.svg' %}
+
+
+        <ol>
+        {% for item in my_list %}
+            <li>{{ forloop.counter}} - {{item}} </li>
+        {% endfor %}
+
+        <ul>
+        {% for rpu in rpu_list %}
+            <li>{{rpu}}</li>
+        {% endfor %}
+
+        </ul>
+
+        </ol>
+
+    {%  endblock content_section_1%}
